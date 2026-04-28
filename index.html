@@ -611,6 +611,149 @@ function saveReview() {
 }
 
 render();
+<!-- AÑADE ESTO JUSTO ANTES DEL SCRIPT -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+
+<script>
+const SUPABASE_URL = "https://mjbmncvadekiqdibdona.supabase.co";
+const SUPABASE_KEY = "sb_publishable__MNifUvExNnQOTPBeqqkWg_m_XVr8Z5";
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let reviews = [];
+let filter = 'all';
+let stars = 0;
+
+document.getElementById('footerYear').textContent = new Date().getFullYear();
+
+// CARGAR DATOS
+async function loadReviews() {
+  const { data, error } = await supabaseClient
+    .from('reviews')
+    .select('*')
+    .order('id', { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  reviews = data || [];
+  render();
+}
+
+// RENDER
+function starsStr(n) {
+  return '★'.repeat(n) + '☆'.repeat(5 - n);
+}
+
+function render() {
+  const list = document.getElementById('reviewsList');
+  const countEl = document.getElementById('reviewCount');
+  const shown = filter === 'all' ? reviews : reviews.filter(r => r.reader === filter);
+
+  countEl.textContent = shown.length + (shown.length === 1 ? ' reseña' : ' reseñas');
+
+  if (!shown.length) {
+    list.innerHTML = '<p class="empty-state">Ninguna reseña todavía.</p>';
+    return;
+  }
+
+  list.innerHTML = shown.map(r => `
+    <div class="review-item">
+      <div class="review-meta">
+        <div class="meta-reader">${r.reader}</div>
+        <div class="meta-date">${r.date}</div>
+        <div class="meta-stars">${starsStr(r.stars)}</div>
+        ${r.genre ? `<div class="meta-genre">${r.genre}</div>` : ''}
+      </div>
+      <div class="review-body">
+        <button class="delete-btn" onclick="del(${r.id})">eliminar</button>
+        <h2 class="book-title">${r.title}</h2>
+        <p class="book-author">${r.author}</p>
+        <p class="review-text">${r.text}</p>
+      </div>
+    </div>
+  `).join('');
+}
+
+// BORRAR
+async function del(id) {
+  if (!confirm('¿Eliminar esta reseña?')) return;
+
+  await supabaseClient.from('reviews').delete().eq('id', id);
+  loadReviews();
+}
+
+// GUARDAR
+async function saveReview() {
+  const reader = document.getElementById('fReader').value;
+  const title  = document.getElementById('fTitle').value.trim();
+  const author = document.getElementById('fAuthor').value.trim();
+  const genre  = document.getElementById('fGenre').value.trim();
+  const text   = document.getElementById('fText').value.trim();
+
+  if (!reader || !title || !author || !text || !stars) {
+    alert('Completa todo');
+    return;
+  }
+
+  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const now = new Date();
+
+  await supabaseClient.from('reviews').insert([{
+    reader,
+    title,
+    author,
+    genre,
+    stars,
+    text,
+    date: `${months[now.getMonth()]} ${now.getFullYear()}`
+  }]);
+
+  closeModal();
+  loadReviews();
+}
+
+// FILTROS
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filter = btn.dataset.filter;
+    render();
+  });
+});
+
+// MODAL
+function openModal() {
+  stars = 0;
+  updateStars();
+  ['fReader','fTitle','fAuthor','fGenre','fText'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function updateStars() {
+  document.querySelectorAll('#starPick span').forEach((s, i) => {
+    s.classList.toggle('lit', i < stars);
+  });
+}
+
+document.querySelectorAll('#starPick span').forEach(s => {
+  s.addEventListener('click', () => {
+    stars = +s.dataset.v;
+    updateStars();
+  });
+});
+
+document.getElementById('starPick').addEventListener('mouseleave', updateStars);
+
+// INIT
+loadReviews();
 </script>
-</body>
-</html>
